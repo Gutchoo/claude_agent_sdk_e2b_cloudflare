@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Claude Code local settings (may contain API keys)
+.claude/settings.local.json
+
+# Database
+*.db
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Reference frontend (temporary)
+reference_frontend/
+
+# Anthropic SDK docs (temporary)
+anthropic_sdk_docs/
+
+# Logs
+*.log
+
+# Test artifacts
+.pytest_cache/
