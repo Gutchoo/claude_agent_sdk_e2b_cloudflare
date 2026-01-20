@@ -38,6 +38,12 @@ export type E2BEvent =
 // Connection status for UI
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
+// File mention in a message
+export interface FileMention {
+  id: string      // file ID
+  label: string   // filename
+}
+
 // Parsed message for display (frontend internal)
 export interface DisplayMessage {
   id: string
@@ -45,6 +51,7 @@ export interface DisplayMessage {
   content: string
   timestamp: Date
   toolUses?: ToolUse[]
+  fileMentions?: FileMention[]
 }
 
 // Tool use with optional result (frontend internal)

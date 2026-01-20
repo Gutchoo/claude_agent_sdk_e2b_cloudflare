@@ -2,12 +2,13 @@
  * MessageBubble Component
  *
  * Displays a single message (user or assistant).
- * No streaming animation - shows full content immediately.
+ * Parses @[filename] mentions and renders as styled chips.
  * Tool uses displayed inline via ToolCard.
  */
 
 import { ToolCard } from '@/components/ToolCard'
 import type { DisplayMessage } from '@/types/e2b'
+import type { ReactNode } from 'react'
 
 interface MessageBubbleProps {
   message: DisplayMessage
@@ -36,13 +37,76 @@ function ResponseTimer({ elapsedTime, isActive }: { elapsedTime: number; isActiv
   )
 }
 
+// Parse @[filename] mentions and render as styled chips
+function parseFileMentions(content: string): ReactNode[] {
+  const mentionRegex = /@\[([^\]]+)\]/g
+  const parts: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index))
+    }
+
+    // Add the mention chip
+    const filename = match[1]
+    parts.push(
+      <FileMentionChip key={`${match.index}-${filename}`} filename={filename} />
+    )
+
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add remaining text
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex))
+  }
+
+  return parts
+}
+
+// File mention chip for display in messages
+function FileMentionChip({ filename }: { filename: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded bg-primary-foreground/20 text-primary-foreground text-sm font-medium whitespace-nowrap">
+      <FileIcon />
+      @{filename}
+    </span>
+  )
+}
+
+function FileIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+    >
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+    </svg>
+  )
+}
+
 export function MessageBubble({ message, elapsedTime, isTimerActive }: MessageBubbleProps) {
   if (message.role === 'user') {
+    // Check if content contains file mentions
+    const hasMentions = /@\[[^\]]+\]/.test(message.content)
+
     return (
       <div className="flex gap-3 justify-end">
         <div className="max-w-[85%] rounded-xl px-4 py-3 bg-primary text-primary-foreground">
           <p className="text-base whitespace-pre-wrap leading-relaxed">
-            {message.content}
+            {hasMentions ? parseFileMentions(message.content) : message.content}
           </p>
         </div>
       </div>

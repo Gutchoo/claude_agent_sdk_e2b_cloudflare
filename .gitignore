@@ -37,3 +37,4 @@ anthropic_sdk_docs/
 
 # Test artifacts
 .pytest_cache/
+reference_frontend/

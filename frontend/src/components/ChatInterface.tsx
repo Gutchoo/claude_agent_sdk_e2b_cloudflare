@@ -3,16 +3,14 @@
  *
  * Main chat area with:
  * - Message list (scrollable)
- * - Chat input (simple textarea)
- *
- * No streaming animation, no file mentions.
+ * - Chat input with TipTap editor and @ file mentions
  */
 
 import { useRef, useEffect } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChatInput } from '@/components/ChatInput'
 import { MessageBubble } from '@/components/MessageBubble'
-import type { DisplayMessage } from '@/types/e2b'
+import type { DisplayMessage, SessionFile } from '@/types/e2b'
 
 // Format elapsed time for display
 function formatElapsedTime(ms: number): string {
@@ -45,7 +43,8 @@ interface ChatInterfaceProps {
   isProcessing: boolean
   isWaitingForResponse: boolean
   elapsedTime: number
-  onSendMessage: (content: string) => void
+  files: SessionFile[]
+  onSendMessage: (content: string, fileIds?: string[]) => void
 }
 
 export function ChatInterface({
@@ -54,6 +53,7 @@ export function ChatInterface({
   isProcessing,
   isWaitingForResponse,
   elapsedTime,
+  files,
   onSendMessage,
 }: ChatInterfaceProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -104,6 +104,7 @@ export function ChatInterface({
           <ChatInput
             isConnected={isConnected}
             isProcessing={isProcessing}
+            files={files}
             onSendMessage={onSendMessage}
           />
         </div>

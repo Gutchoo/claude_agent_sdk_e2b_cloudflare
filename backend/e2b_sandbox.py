@@ -318,6 +318,25 @@ class E2BSandboxManager:
             return True
         return False
 
+    async def remove_file_from_sandbox(self, session_id: str, filename: str) -> bool:
+        """Remove a file from an active sandbox."""
+        sbx = self._active.get(session_id)
+        if not sbx:
+            return False  # No active sandbox, nothing to do
+
+        try:
+            file_path = f"/home/user/workspace/uploads/{filename}"
+            result = sbx.commands.run(f'rm -f "{file_path}"', timeout=10)
+            if result.exit_code == 0:
+                print(f"Removed file from sandbox: {filename}")
+                return True
+            else:
+                print(f"Failed to remove file from sandbox: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"Error removing file from sandbox: {e}")
+            return False
+
     async def cleanup_all(self, save_snapshots: bool = True):
         """Kill all active sandboxes, optionally saving snapshots."""
         # Cancel all pending kills first

@@ -122,6 +122,7 @@ function App() {
           isProcessing={isProcessing}
           isWaitingForResponse={isWaitingForResponse}
           elapsedTime={elapsedTime}
+          files={files}
           onSendMessage={sendMessage}
         />
 

@@ -4,11 +4,13 @@ Uses E2B sandboxes with R2 hydration/dehydration for persistence.
 """
 
 import asyncio
+import json
 import os
+import random
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, List
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
@@ -52,6 +54,46 @@ from database import (
 from e2b_sandbox import E2BSandboxManager
 from e2b_claude_runner import E2BClaudeRunner
 from r2_storage import R2Storage
+
+
+# Fun random titles for new sessions
+FUN_TITLES = [
+    "Cosmic Brainstorm",
+    "Midnight Debugging",
+    "Quantum Thoughts",
+    "Electric Dreams",
+    "Pixel Adventure",
+    "Neural Spark",
+    "Code Odyssey",
+    "Digital Campfire",
+    "Syntax Safari",
+    "Logic Labyrinth",
+    "Binary Sunset",
+    "Algorithm Alley",
+    "Debug Dimension",
+    "Function Junction",
+    "Variable Voyage",
+    "Loop de Loop",
+    "Stack Overflow",
+    "Memory Lane",
+    "Cache Quest",
+    "Async Adventure",
+    "Promise Land",
+    "Callback Canyon",
+    "Regex Rodeo",
+    "Terminal Velocity",
+    "Git Happens",
+    "Merge Conflict",
+    "Hot Reload",
+    "Null Island",
+    "Type Safety",
+    "Edge Case",
+]
+
+
+def generate_fun_title() -> str:
+    """Generate a fun random title for a new session."""
+    return random.choice(FUN_TITLES)
 
 
 # Global managers
@@ -251,7 +293,7 @@ async def list_session_files_endpoint(session_id: str):
 
 @app.delete("/api/sessions/{session_id}/files/{file_id}")
 async def delete_file_endpoint(session_id: str, file_id: str):
-    """Soft delete a file (marks as deleted but keeps in R2 for now)."""
+    """Delete a file from R2 storage, sandbox, and mark as deleted in database."""
     file_record = get_file_by_id(file_id)
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
@@ -259,8 +301,16 @@ async def delete_file_endpoint(session_id: str, file_id: str):
     if file_record["session_id"] != session_id:
         raise HTTPException(status_code=400, detail="File does not belong to this session")
 
-    # Soft delete in database
+    filename = file_record["filename"]
+
+    # Delete from R2 storage first
+    r2_storage.delete_file(session_id, file_id, filename)
+
+    # Soft delete in database (keeps record for audit)
     soft_delete_file(file_id)
+
+    # Remove from active sandbox if running
+    await sandbox_manager.remove_file_from_sandbox(session_id, filename)
 
     return {"status": "deleted", "file_id": file_id}
 
@@ -323,7 +373,7 @@ async def websocket_chat(
             print(f"Creating new session {current_session_id}")
             sandbox = await sandbox_manager.create_sandbox(current_session_id)
             # Create session in DB immediately so file uploads work
-            create_session(current_session_id, user_id, "New Chat")
+            create_session(current_session_id, user_id, generate_fun_title())
             update_sandbox_info(current_session_id, sandbox.sandbox_id, "active")
 
         # Create Claude runner for this sandbox
@@ -355,19 +405,53 @@ async def websocket_chat(
         # Message loop
         while True:
             try:
-                user_message = await websocket.receive_text()
-                print(f"Received from WebSocket: {user_message[:100]}...")
+                raw_message = await websocket.receive_text()
+                print(f"Received from WebSocket: {raw_message[:100]}...")
+
+                # Parse message - can be plain text or JSON with file_ids
+                user_message = raw_message
+                file_ids: List[str] = []
+
+                try:
+                    parsed = json.loads(raw_message)
+                    if isinstance(parsed, dict) and "message" in parsed:
+                        user_message = parsed["message"]
+                        file_ids = parsed.get("file_ids", [])
+                        print(f"Parsed JSON message with {len(file_ids)} file mentions")
+                except json.JSONDecodeError:
+                    # Plain text message - use as-is
+                    pass
+
+                # Build file context if files are mentioned
+                file_context = ""
+                if file_ids and current_session_id:
+                    mentioned_files = []
+                    for file_id in file_ids:
+                        file_record = get_file_by_id(file_id)
+                        if file_record and file_record["session_id"] == current_session_id:
+                            mentioned_files.append(file_record)
+
+                    if mentioned_files:
+                        file_context = "\n\n[Referenced files in the sandbox workspace:]\n"
+                        for f in mentioned_files:
+                            file_context += f"- /home/user/workspace/uploads/{f['filename']}\n"
+                        print(f"Injecting file context for {len(mentioned_files)} files")
+
+                # Combine message with file context
+                prompt_to_send = user_message
+                if file_context:
+                    prompt_to_send = user_message + file_context
 
                 start_time = time.time()
 
-                # Log user message to database
+                # Log user message to database (original message, not with file context)
                 add_chat_message(current_session_id, "user", user_message)
 
                 # Collect assistant response
                 assistant_response = ""
 
                 # Run prompt through E2B sandbox
-                async for event in runner.run_prompt(user_message):
+                async for event in runner.run_prompt(prompt_to_send):
                     await websocket.send_json(event)
 
                     # Collect text chunks for logging
@@ -381,13 +465,9 @@ async def websocket_chat(
                 if assistant_response:
                     add_chat_message(current_session_id, "assistant", assistant_response)
 
-                # Update session title after first message
+                # Mark session as no longer new (keep the fun random title)
                 if is_new_session:
-                    # Use first message as title (truncated)
-                    title = user_message[:50] + "..." if len(user_message) > 50 else user_message
-                    update_session_title(current_session_id, title)
                     is_new_session = False
-                    print(f"Updated session title: {current_session_id}")
 
                 # Save Claude's internal session ID for future resumption
                 if runner._claude_session_id:

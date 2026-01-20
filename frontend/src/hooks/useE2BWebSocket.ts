@@ -19,7 +19,7 @@ interface UseE2BWebSocketReturn {
   currentSessionId: string | null
   sandboxId: string | null
   elapsedTime: number
-  sendMessage: (content: string) => void
+  sendMessage: (content: string, fileIds?: string[]) => void
   clearMessages: () => void
 }
 
@@ -271,7 +271,7 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
     }
   }, [sessionId, handleEvent])
 
-  const sendMessage = useCallback((content: string) => {
+  const sendMessage = useCallback((content: string, fileIds?: string[]) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected')
       return
@@ -290,8 +290,12 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
     }
     setMessages((prev) => [...prev, userMessage])
 
-    // Send plain text to server (not JSON)
-    wsRef.current.send(content)
+    // Send JSON if file_ids present, otherwise plain text for backward compatibility
+    if (fileIds && fileIds.length > 0) {
+      wsRef.current.send(JSON.stringify({ message: content, file_ids: fileIds }))
+    } else {
+      wsRef.current.send(content)
+    }
   }, [startTimer])
 
   const clearMessages = useCallback(() => {
