@@ -44,7 +44,7 @@ interface ChatInterfaceProps {
   isWaitingForResponse: boolean
   elapsedTime: number
   files: SessionFile[]
-  onSendMessage: (content: string, fileIds?: string[]) => void
+  onSendMessage: (content: string, fileIds?: string[], model?: string) => void
 }
 
 export function ChatInterface({

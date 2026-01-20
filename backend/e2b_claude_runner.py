@@ -8,6 +8,13 @@ from typing import AsyncIterator, Optional
 from e2b import Sandbox
 
 
+# Map frontend model picker values to Claude CLI model aliases
+MODEL_MAP = {
+    "opus-4.5": "opus",
+    "sonnet-4": "sonnet",
+}
+
+
 class E2BClaudeRunner:
     """Runs Claude CLI commands in an E2B sandbox with streaming output."""
 
@@ -19,7 +26,8 @@ class E2BClaudeRunner:
     async def run_prompt(
         self,
         prompt: str,
-        resume_session: Optional[str] = None
+        resume_session: Optional[str] = None,
+        model: str = "opus-4.5"
     ) -> AsyncIterator[dict]:
         """
         Run a prompt through Claude CLI and yield parsed events.
@@ -27,6 +35,7 @@ class E2BClaudeRunner:
         Args:
             prompt: The user's message to send to Claude
             resume_session: Optional session ID to resume
+            model: Model to use (opus-4.5 or sonnet-4)
 
         Yields:
             Event dictionaries compatible with WebSocket protocol
@@ -34,11 +43,15 @@ class E2BClaudeRunner:
         # Escape single quotes in the prompt for shell
         escaped_prompt = prompt.replace("'", "'\\''")
 
+        # Map model picker value to CLI model name
+        cli_model = MODEL_MAP.get(model, model)
+
         # Build Claude CLI command
         # -p: Print output (no interactive mode)
         # --output-format json: Get structured JSON output with session_id
+        # --model: Specify which model to use
         # --dangerously-skip-permissions: Skip permission prompts (for sandbox use)
-        cmd = f"cd {self.working_dir} && echo '{escaped_prompt}' | claude -p --output-format json --dangerously-skip-permissions"
+        cmd = f"cd {self.working_dir} && echo '{escaped_prompt}' | claude -p --output-format json --model {cli_model} --dangerously-skip-permissions"
 
         # Only add --resume if we have an existing Claude session ID
         if self._claude_session_id:

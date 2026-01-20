@@ -417,10 +417,11 @@ async def websocket_chat(
                     if isinstance(parsed, dict) and "message" in parsed:
                         user_message = parsed["message"]
                         file_ids = parsed.get("file_ids", [])
-                        print(f"Parsed JSON message with {len(file_ids)} file mentions")
+                        model = parsed.get("model", "opus-4.5")
+                        print(f"Parsed JSON message with {len(file_ids)} file mentions, model: {model}")
                 except json.JSONDecodeError:
                     # Plain text message - use as-is
-                    pass
+                    model = "opus-4.5"
 
                 # Build file context if files are mentioned
                 file_context = ""
@@ -451,7 +452,7 @@ async def websocket_chat(
                 assistant_response = ""
 
                 # Run prompt through E2B sandbox
-                async for event in runner.run_prompt(prompt_to_send):
+                async for event in runner.run_prompt(prompt_to_send, model=model):
                     await websocket.send_json(event)
 
                     # Collect text chunks for logging
