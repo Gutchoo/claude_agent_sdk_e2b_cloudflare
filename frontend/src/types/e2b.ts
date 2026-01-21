@@ -34,6 +34,7 @@ export type E2BEvent =
   | { type: 'tool_result'; tool_id: string; tool_name: string; content: string; is_error: boolean; duration: number }
   | { type: 'done'; session_id: string }
   | { type: 'error'; message: string }
+  | { type: 'pong'; sandbox_alive: boolean; error?: string }
 
 // Connection status for UI
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'

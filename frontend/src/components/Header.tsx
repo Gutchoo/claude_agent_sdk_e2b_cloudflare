@@ -9,21 +9,26 @@
 
 import { Button } from '@/components/ui/button'
 import type { ConnectionStatus } from '@/types/e2b'
+import type { SandboxStatus } from '@/hooks/useE2BWebSocket'
 
 interface HeaderProps {
   connectionStatus: ConnectionStatus
+  sandboxStatus: SandboxStatus
   theme: 'light' | 'dark'
   onToggleTheme: () => void
 }
 
-export function Header({ connectionStatus, theme, onToggleTheme }: HeaderProps) {
+export function Header({ connectionStatus, sandboxStatus, theme, onToggleTheme }: HeaderProps) {
   return (
     <header className="border-b border-border px-3 py-1.5 flex items-center justify-between bg-card">
       <h1 className="text-sm font-semibold text-muted-foreground">Claude Agent</h1>
 
-      <div className="flex items-center gap-3">
-        {/* Connection Status */}
-        <ConnectionStatusBadge status={connectionStatus} />
+      <div className="flex items-center gap-4">
+        {/* Status Indicators */}
+        <div className="flex items-center gap-4">
+          <StatusIndicator label="Sandbox" status={sandboxStatus} type="sandbox" />
+          <StatusIndicator label="WebSocket" status={connectionStatus} type="connection" />
+        </div>
 
         {/* Theme Toggle */}
         <Button
@@ -40,19 +45,35 @@ export function Header({ connectionStatus, theme, onToggleTheme }: HeaderProps) 
   )
 }
 
-function ConnectionStatusBadge({ status }: { status: ConnectionStatus }) {
-  const config = {
-    disconnected: { label: 'Disconnected', color: 'bg-red-500', animate: false },
-    connecting: { label: 'Connecting...', color: 'bg-yellow-500', animate: true },
-    connected: { label: 'Connected', color: 'bg-green-500', animate: false },
+interface StatusIndicatorProps {
+  label: string
+  status: ConnectionStatus | SandboxStatus
+  type: 'connection' | 'sandbox'
+}
+
+function StatusIndicator({ label, status, type }: StatusIndicatorProps) {
+  const connectionConfig = {
+    disconnected: { text: 'Disconnected', color: 'bg-red-500', animate: false },
+    connecting: { text: 'Connecting...', color: 'bg-yellow-500', animate: true },
+    connected: { text: 'Connected', color: 'bg-green-500', animate: false },
   }
 
-  const { label, color, animate } = config[status]
+  const sandboxConfig = {
+    unknown: { text: 'Unknown', color: 'bg-gray-500', animate: false },
+    alive: { text: 'Alive', color: 'bg-green-500', animate: false },
+    dead: { text: 'Dead', color: 'bg-red-500', animate: false },
+  }
+
+  const config = type === 'connection' ? connectionConfig : sandboxConfig
+  const { text, color, animate } = config[status as keyof typeof config]
 
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span className={`w-1.5 h-1.5 rounded-full ${color} ${animate ? 'animate-pulse' : ''}`} />
-      {label}
+    <div className="flex flex-col items-start gap-0.5">
+      <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">{label}</span>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className={`w-1.5 h-1.5 rounded-full ${color} ${animate ? 'animate-pulse' : ''}`} />
+        {text}
+      </div>
     </div>
   )
 }

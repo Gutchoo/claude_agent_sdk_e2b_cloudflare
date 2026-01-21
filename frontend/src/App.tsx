@@ -36,6 +36,7 @@ function App() {
   const {
     messages,
     connectionStatus,
+    sandboxStatus,
     isProcessing,
     isWaitingForResponse,
     currentSessionId,
@@ -100,6 +101,7 @@ function App() {
       {/* Header */}
       <Header
         connectionStatus={connectionStatus}
+        sandboxStatus={sandboxStatus}
         theme={theme}
         onToggleTheme={toggleTheme}
       />

@@ -24,14 +24,23 @@ class E2BSandboxManager:
     async def create_sandbox(self, session_id: str) -> Sandbox:
         """
         Create a new E2B sandbox for a session.
-        If an active sandbox exists, reuse it. Otherwise, if a snapshot exists in R2, hydrate from it.
+        If an active sandbox exists and is healthy, reuse it. Otherwise, if a snapshot exists in R2, hydrate from it.
         """
         # Check if we already have an active sandbox for this session
         if session_id in self._active:
-            # Cancel any pending kill and reuse existing sandbox
+            # Cancel any pending kill
             self.cancel_pending_kill(session_id)
-            print(f"Reusing existing sandbox for session {session_id}")
-            return self._active[session_id]
+
+            # Verify the sandbox is still alive with a health check
+            existing_sandbox = self._active[session_id]
+            try:
+                existing_sandbox.commands.run("echo health", timeout=5)
+                print(f"Reusing existing sandbox for session {session_id}")
+                return existing_sandbox
+            except Exception as e:
+                # Sandbox is dead, remove from active and create new one
+                print(f"Existing sandbox for {session_id} is dead ({e}), creating new one...")
+                self._active.pop(session_id, None)
 
         # Create sandbox with Anthropic API key in environment
         sbx = Sandbox.create(

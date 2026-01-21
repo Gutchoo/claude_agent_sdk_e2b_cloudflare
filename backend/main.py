@@ -414,6 +414,21 @@ async def websocket_chat(
 
                 try:
                     parsed = json.loads(raw_message)
+
+                    # Handle ping message for keep-alive
+                    if isinstance(parsed, dict) and parsed.get("type") == "ping":
+                        try:
+                            # Execute lightweight command to keep sandbox alive
+                            if sandbox:
+                                sandbox.commands.run("echo ping", timeout=5)
+                                await websocket.send_json({"type": "pong", "sandbox_alive": True})
+                            else:
+                                await websocket.send_json({"type": "pong", "sandbox_alive": False, "error": "no_sandbox"})
+                        except Exception as e:
+                            print(f"Ping failed: {e}")
+                            await websocket.send_json({"type": "pong", "sandbox_alive": False, "error": str(e)})
+                        continue  # Skip normal message processing
+
                     if isinstance(parsed, dict) and "message" in parsed:
                         user_message = parsed["message"]
                         file_ids = parsed.get("file_ids", [])

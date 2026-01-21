@@ -15,6 +15,9 @@ E2B_SANDBOX_TIMEOUT = int(os.environ.get("E2B_SANDBOX_TIMEOUT", "300"))  # 5 min
 # Sandbox grace period - how long to keep sandbox alive after disconnect before killing
 SANDBOX_GRACE_PERIOD = int(os.environ.get("SANDBOX_GRACE_PERIOD", "180"))  # 3 minutes default
 
+# Keep-alive interval - how often frontend should ping to keep sandbox alive
+KEEP_ALIVE_INTERVAL = int(os.environ.get("KEEP_ALIVE_INTERVAL", "60"))  # 60 seconds default
+
 # Anthropic API Key (passed to sandbox)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 

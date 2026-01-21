@@ -90,14 +90,20 @@ class E2BClaudeRunner:
             """Callback for stderr data from E2B sandbox."""
             print(f"[stderr] {data.strip()}")
 
+        # Track if we should retry without --resume
+        retry_without_resume = {"should_retry": False, "cmd_to_retry": None}
+
+        # Build command without --resume for potential retry
+        base_cmd = f"cd {self.working_dir} && echo '{escaped_prompt}' | claude -p --output-format stream-json --verbose --model {cli_model} --dangerously-skip-permissions"
+
         # Run the command in a separate thread to allow streaming
-        async def run_command():
+        async def run_command(command: str, is_retry: bool = False):
             """Run command in thread pool to avoid blocking asyncio."""
             try:
                 result = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: self.sandbox.commands.run(
-                        cmd,
+                        command,
                         timeout=300,
                         on_stdout=on_stdout,
                         on_stderr=on_stderr,
@@ -116,12 +122,23 @@ class E2BClaudeRunner:
                 await event_queue.put(None)
 
             except Exception as e:
-                print(f"Command failed with exception: {e}")
-                await event_queue.put({"type": "error", "message": str(e)})
-                await event_queue.put(None)
+                error_msg = str(e)
+                print(f"Command failed with exception: {error_msg}")
+
+                # If command with --resume failed and we haven't retried yet, retry without --resume
+                if not is_retry and self._claude_session_id and "exited with code 1" in error_msg:
+                    print(f"Command with --resume failed, retrying without --resume...")
+                    self._claude_session_id = None  # Clear invalid session ID
+                    line_buffer["buffer"] = ""  # Clear buffer for retry
+                    retry_without_resume["should_retry"] = True
+                    retry_without_resume["cmd_to_retry"] = base_cmd
+                    await event_queue.put(None)  # Signal to check retry
+                else:
+                    await event_queue.put({"type": "error", "message": error_msg})
+                    await event_queue.put(None)
 
         # Start the command in background
-        command_task = asyncio.create_task(run_command())
+        command_task = asyncio.create_task(run_command(cmd, is_retry=False))
 
         # Yield events from the queue as they arrive
         try:
@@ -132,6 +149,15 @@ class E2BClaudeRunner:
                 except asyncio.TimeoutError:
                     # No event ready, check if command task is done
                     if command_task.done():
+                        # Check if we need to retry without --resume
+                        if retry_without_resume["should_retry"]:
+                            print("Retrying command without --resume flag...")
+                            retry_without_resume["should_retry"] = False
+                            command_task = asyncio.create_task(
+                                run_command(retry_without_resume["cmd_to_retry"], is_retry=True)
+                            )
+                            continue
+
                         # Drain any remaining events
                         while not event_queue.empty():
                             event = await event_queue.get()
@@ -145,6 +171,9 @@ class E2BClaudeRunner:
                     continue
 
                 if event is None:
+                    # Check if we need to retry
+                    if retry_without_resume["should_retry"]:
+                        continue  # Let the timeout handler pick up the retry
                     break
 
                 # Capture session_id from result events

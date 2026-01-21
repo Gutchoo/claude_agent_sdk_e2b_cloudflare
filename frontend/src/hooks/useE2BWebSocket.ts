@@ -11,9 +11,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { getWebSocketUrl, getMessages } from '@/lib/api'
 import type { E2BEvent, ConnectionStatus, DisplayMessage, ToolUse, E2BMessage } from '@/types/e2b'
 
+export type SandboxStatus = 'unknown' | 'alive' | 'dead'
+
 interface UseE2BWebSocketReturn {
   messages: DisplayMessage[]
   connectionStatus: ConnectionStatus
+  sandboxStatus: SandboxStatus
   isProcessing: boolean
   isWaitingForResponse: boolean
   currentSessionId: string | null
@@ -44,6 +47,7 @@ function parseTimestamp(timestamp: string): Date {
 export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
+  const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('unknown')
   const [isProcessing, setIsProcessing] = useState(false)
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
@@ -57,6 +61,7 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
   const previousSessionIdRef = useRef<string | null>(null)
   const timerStartRef = useRef<number | null>(null)
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Timer control functions
   const startTimer = useCallback(() => {
@@ -87,6 +92,7 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
       case 'session_info':
         setCurrentSessionId(event.session_id)
         setSandboxId(event.sandbox_id)
+        setSandboxStatus('alive')  // Sandbox was just created/verified
         console.log(`Session info: ${event.session_id}, new: ${event.is_new}, snapshot: ${event.has_snapshot}`)
         break
 
@@ -186,6 +192,15 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
         }
         currentMessageIdRef.current = null
         break
+
+      case 'pong':
+        if (event.sandbox_alive) {
+          setSandboxStatus('alive')
+        } else {
+          console.error('Sandbox is dead:', event.error)
+          setSandboxStatus('dead')
+        }
+        break
     }
   }, [stopTimer])
 
@@ -200,6 +215,7 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
     // Reset state when session changes
     setMessages([])
     setConnectionStatus('connecting')
+    setSandboxStatus('unknown')
     setIsProcessing(false)
     setIsWaitingForResponse(false)
     setElapsedTime(0)
@@ -209,6 +225,10 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current)
       timerIntervalRef.current = null
+    }
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current)
+      pingIntervalRef.current = null
     }
 
     // Load message history if connecting to existing session
@@ -243,6 +263,13 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
     ws.onopen = () => {
       console.log('WebSocket connected')
       setConnectionStatus('connected')
+
+      // Start keep-alive ping interval (60 seconds)
+      pingIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }))
+        }
+      }, 60000)
     }
 
     ws.onmessage = (event) => {
@@ -267,6 +294,10 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
     }
 
     return () => {
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current)
+        pingIntervalRef.current = null
+      }
       ws.close()
     }
   }, [sessionId, handleEvent])
@@ -305,6 +336,7 @@ export function useE2BWebSocket(sessionId: string | null): UseE2BWebSocketReturn
   return {
     messages,
     connectionStatus,
+    sandboxStatus,
     isProcessing,
     isWaitingForResponse,
     currentSessionId,

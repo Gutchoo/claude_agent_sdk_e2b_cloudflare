@@ -10,7 +10,7 @@ uvicorn main:app --reload --port 8001
 
 # Terminal 2: Frontend
 cd frontend
-python -m http.server 3000
+npm run dev
 
 # Open browser: http://localhost:3000
 ```
@@ -39,7 +39,7 @@ R2_BUCKET_NAME=claude-agent-snapshots
 │   ┌──────────────────────────────────────────────────────────────────────┐  │
 │   │                     Frontend (localhost:3000)                         │  │
 │   │                                                                       │  │
-│   │  • Static HTML/CSS/JS served by Python http.server                   │  │
+│   │  • Vite + React + TypeScript app (npm run dev)                       │  │
 │   │  • WebSocket connection to backend                                    │  │
 │   │  • Displays chat history from database (no sandbox needed)           │  │
 │   └───────────────────────────────┬──────────────────────────────────────┘  │
@@ -220,9 +220,10 @@ basic_agent_sdk/
 │   ├── requirements.txt     # Python dependencies
 │   └── sessions.db          # SQLite database (auto-created)
 ├── frontend/
-│   ├── index.html           # Chat UI
-│   ├── style.css            # Styling
-│   └── app.js               # WebSocket client
+│   ├── src/                 # React components and app logic
+│   ├── index.html           # Entry point
+│   ├── package.json         # Dependencies (React, Vite, shadcn/ui)
+│   └── vite.config.ts       # Vite configuration
 ├── .env                     # API keys (not in git)
 └── CLAUDE.md               # This file
 ```
